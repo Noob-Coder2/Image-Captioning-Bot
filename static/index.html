@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Captioning Bot</title>
+</head>
+<body>
+    <h1>Upload an Image for Captioning</h1>
+    <form id="upload-form">
+        <input type="file" name="image" accept="image/*" required>
+        <button type="submit">Generate Caption</button>
+    </form>
+    <div id="caption"></div>
+
+    <script>
+        document.getElementById('upload-form').onsubmit = async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/generate_caption', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            document.getElementById('caption').innerText = result.caption || result.error;
+        };
+    </script>
+</body>
+</html>
