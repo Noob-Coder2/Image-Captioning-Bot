@@ -3,8 +3,8 @@ import os
 
 if __name__ == "__main__":
     # File paths
-    train_file = "Train_GCC-training.tsv"
-    validation_file = "Validation_GCC-1.1.0-Validation.tsv"
+    train_file = "uploads\Train_GCC-training.tsv"
+    validation_file = "uploads\Validation_GCC-1.1.0-Validation.tsv"
     results_path = "static/results.json"
     model_save_path = "models/fine_tuned_clip"
 

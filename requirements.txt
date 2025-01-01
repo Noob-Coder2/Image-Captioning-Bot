@@ -2,4 +2,8 @@ torch
 torchvision
 transformers
 flask
+Flask-CORS
 Pillow
+pandas
+nltk
+rouge-score

@@ -1,5 +1,6 @@
 import os
-from utils.dataset import load_captions, preprocess_images
+from utils.dataset import load_captions
+from utils.preprocess import preprocess_image
 from models.model import initialize_model, train_model, save_model
 from app.evaluation import calculate_bleu, calculate_rouge, save_results
 
@@ -11,15 +12,15 @@ def train_pipeline(train_file, validation_file, results_path, model_save_path):
 
     # Step 1: Load and preprocess datasets
     print("Loading and preprocessing datasets...")
-    train_data = load_captions(train_file, split="train")
-    validation_data = load_captions(validation_file, split="validation")
+    train_data = load_captions(train_file)
+    validation_data = load_captions(validation_file) 
 
-    train_images, train_captions = preprocess_images(train_data)
-    validation_images, validation_captions = preprocess_images(validation_data)
+    train_images, train_captions = preprocess_image(train_data)
+    validation_images, validation_captions = preprocess_image(validation_data)
 
     # Step 2: Initialize the model
     print("Initializing the model...")
-    model, clip_processor = initialize_model()
+    model, clip_processor, gpt_model, tokenizer, clip_to_gpt = initialize_model()
 
     # Step 3: Train the model
     print("Training the model...")

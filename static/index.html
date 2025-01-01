@@ -4,6 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Captioning Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #upload-form {
+            width: 50%;
+            margin: 40px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #upload-form input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+        }
+        #upload-form button[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #upload-form button[type="submit"]:hover {
+            background-color: #3e8e41;
+        }
+        #caption {
+            width: 50%;
+            margin: 40px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 </head>
 <body>
     <h1>Upload an Image for Captioning</h1>
@@ -22,7 +61,32 @@
                 body: formData
             });
             const result = await response.json();
-            document.getElementById('caption').innerText = result.caption || result.error;
+            const captionDiv = document.getElementById('caption');
+            if (result.error) {
+                captionDiv.style.color = 'red';
+                captionDiv.style.backgroundColor = '#ffeeee';
+                captionDiv.style.padding = '20px';
+                captionDiv.style.borderRadius = '5px';
+                
+                if (result.error.includes("not trained")) {
+                    captionDiv.innerHTML = `
+                        <strong>Model Not Trained</strong><br>
+                        ${result.error}<br><br>
+                        To train the model:<br>
+                        1. Obtain the training data files<br>
+                        2. Place them in the project directory<br>
+                        3. Run: <code>python train.py</code>
+                    `;
+                } else {
+                    captionDiv.innerText = result.error;
+                }
+            } else {
+                captionDiv.style.color = 'black';
+                captionDiv.style.backgroundColor = '#eeffee';
+                captionDiv.style.padding = '20px';
+                captionDiv.style.borderRadius = '5px';
+                captionDiv.innerText = result.caption;
+            }
         };
     </script>
 </body>

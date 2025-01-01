@@ -1,10 +1,29 @@
-from app import app
-from flask import request, jsonify
-from werkzeug.utils import secure_filename
 import os
+import sys
+from flask import Flask, request, jsonify, send_from_directory
+from werkzeug.utils import secure_filename
+from flask_cors import CORS
+
+# Add the project root directory to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import local modules after setting up the path
 from app.inference import caption_image
 
+# Create Flask app
+app = Flask(__name__, static_folder='../static')
+CORS(app)  # Enable CORS for all routes
+
+# Ensure uploads directory exists
 os.makedirs("uploads", exist_ok=True)
+
+@app.route('/')
+def serve_index():
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(app.static_folder, filename)
 
 @app.route('/generate_caption', methods=['POST'])
 def generate_caption_api():
@@ -22,3 +41,6 @@ def generate_caption_api():
         return jsonify({"caption": caption})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
