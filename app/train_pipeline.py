@@ -1,18 +1,13 @@
 import os
-from app.evaluation import calculate_bleu, calculate_rouge, save_results
 from utils.dataset import load_captions, preprocess_images
-from models.model import initialize_model, train_model
+from models.model import initialize_model, train_model, save_model
+from app.evaluation import calculate_bleu, calculate_rouge, save_results
 
 def train_pipeline(train_file, validation_file, results_path, model_save_path):
-    """
-    Orchestrates the training and evaluation process.
-
-    Args:
-        train_file (str): Path to the training dataset file.
-        validation_file (str): Path to the validation dataset file.
-        results_path (str): Path to save evaluation results.
-        model_save_path (str): Path to save the trained model.
-    """
+    # Check if model is already trained
+    if os.path.exists(model_save_path):
+        print(f"Model already trained and available at {model_save_path}. Skipping training.")
+        return
 
     # Step 1: Load and preprocess datasets
     print("Loading and preprocessing datasets...")
@@ -31,7 +26,7 @@ def train_pipeline(train_file, validation_file, results_path, model_save_path):
     trained_model = train_model(model, train_images, train_captions, epochs=5)
 
     # Save the trained model
-    trained_model.save_pretrained(model_save_path)
+    save_model(trained_model, model_save_path)
     print(f"Model saved to {model_save_path}")
 
     # Step 4: Evaluate the model
@@ -47,4 +42,3 @@ def train_pipeline(train_file, validation_file, results_path, model_save_path):
     }
     save_results(results, results_path)
     print(f"Evaluation results saved to {results_path}")
-
