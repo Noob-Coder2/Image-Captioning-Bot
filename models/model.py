@@ -39,7 +39,7 @@ def train_model(model, train_images, train_captions, epochs=5, learning_rate=1e-
         torch.nn.Module: Trained model.
     """
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    loss_fn = torch.nn.CrossEntropyLoss()
+    # loss_fn = torch.nn.CrossEntropyLoss()
     
     model.train()
     for epoch in range(epochs):

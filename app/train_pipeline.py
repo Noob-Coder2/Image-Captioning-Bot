@@ -11,12 +11,14 @@ def train_pipeline(train_file, validation_file, results_path, model_save_path):
         return
 
     # Step 1: Load and preprocess datasets
+    print("Starting the training pipeline...")
     print("Loading and preprocessing datasets...")
-    train_data = load_captions(train_file)
-    validation_data = load_captions(validation_file) 
 
-    train_images, train_captions = preprocess_image(train_data)
-    validation_images, validation_captions = preprocess_image(validation_data)
+    train_images, train_captions = load_captions(train_file)
+    validation_images, validation_captions = load_captions(validation_file)
+    
+    train_images = preprocess_image(train_images)
+    validation_images = preprocess_image(validation_images)
 
     # Step 2: Initialize the model
     print("Initializing the model...")
