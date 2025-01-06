@@ -28,7 +28,7 @@ def caption_image(image_path):
                 print(f"Warning: generate_caption failed, falling back to GPT generate: {str(e)}")
                 try:
                     # Use GPT's standard generate method with proper parameters
-                    input_ids = tokenizer.encode("<SOS>", return_tensors="pt").to(gpt_model.device)
+                    input_ids = tokenizer.encode(image_features, return_tensors="pt").to(gpt_model.device)
                     outputs = gpt_model.generate(
                         input_ids=input_ids,
                         max_length=50,
