@@ -5,13 +5,18 @@ from models.clip_gpt_bridge import CLIP2GPT
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load models and tokenizer
+
 def initialize_model():
+    clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch16").to(device)
+    return clip_model
+
+# Load models and tokenizer
+def load_fine_tuned_model(path="models/fine_tuned_model"):
     """
     Initializes and returns the CLIP model, processor, GPT2 model, tokenizer, and CLIP2GPT bridge.
     """
     # Load CLIP model
-    clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch16").to(device)
+    fine_tuned_model = GPT2LMHeadModel.from_pretrained(path).to(device)
     clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch16")
     
     # Load GPT2 model
@@ -21,7 +26,7 @@ def initialize_model():
     # Load CLIP2GPT bridge
     clip_to_gpt = CLIP2GPT(clip_dim=512, gpt_dim=gpt_model.config.n_embd).to(device)
     
-    return clip_model, clip_processor, gpt_model, tokenizer, clip_to_gpt
+    return fine_tuned_model, clip_processor, gpt_model, tokenizer, clip_to_gpt
 
 
 def train_model(model, train_images, train_captions, epochs=5, learning_rate=1e-4):
@@ -44,7 +49,7 @@ def train_model(model, train_images, train_captions, epochs=5, learning_rate=1e-
     model.train()
     for epoch in range(epochs):
         total_loss = 0
-        for image, caption in zip(train_images, train_captions):
+        for image, caption in list(zip(train_images, train_captions)):
             optimizer.zero_grad()
             
             # Move inputs to device
@@ -65,7 +70,7 @@ def train_model(model, train_images, train_captions, epochs=5, learning_rate=1e-
     return model
 
 
-def save_model(model, processor, path="models/fine_tuned_clip"):
+def save_model(fine_tuned_model, path = "models/fine_tuned_model"):
     """
     Saves the model and processor to the specified path.
 
@@ -74,23 +79,27 @@ def save_model(model, processor, path="models/fine_tuned_clip"):
         processor (transformers.PreTrainedProcessor): The processor to be saved.
         path (str): Directory to save the model and processor.
     """
-    model.save_pretrained(path)
-    processor.save_pretrained(path)
-    print(f"Model and processor saved to {path}")
+    fine_tuned_model.save_pretrained(path)
+    print(f"Model saved to {path}")
 
 
-def generate_caption(image_embedding, gpt_model, tokenizer, clip_to_gpt):
+def generate_caption(image_embedding, gpt_model, tokenizer, clip_to_gpt, fine_tuned_model=None):
     """
-    Generates a caption for the provided image embedding.
+    Generates a caption for the provided image embedding using either the base or fine-tuned model.
 
     Args:
         image_embedding (torch.Tensor): The embedding of the image.
+        gpt_model (GPT2LMHeadModel): Base GPT2 model.
+        tokenizer (GPT2Tokenizer): Tokenizer for text processing.
+        clip_to_gpt (CLIP2GPT): CLIP-GPT bridge model.
+        fine_tuned_model (GPT2LMHeadModel, optional): Fine-tuned GPT2 model. Defaults to None.
 
     Returns:
         str: Generated caption.
     """
+    model_to_use = fine_tuned_model if fine_tuned_model is not None else gpt_model
     gpt_input = clip_to_gpt(image_embedding)
-    input_ids = tokenizer.encode("<SOS>", return_tensors="pt").to(device)
-    outputs = gpt_model.generate(input_ids=input_ids, max_length=50, num_beams=5, early_stopping=True)
+    input_ids = tokenizer.encode(gpt_input, return_tensors="pt").to(device)
+    outputs = model_to_use.generate(input_ids=input_ids, max_length=50, num_beams=5, early_stopping=True)
     
     return tokenizer.decode(outputs[0], skip_special_tokens=True)

@@ -22,7 +22,7 @@ def train_pipeline(train_file, validation_file, results_path, model_save_path):
 
     # Step 2: Initialize the model
     print("Initializing the model...")
-    model, clip_processor, gpt_model, tokenizer, clip_to_gpt = initialize_model()
+    model = initialize_model()
 
     # Step 3: Train the model
     print("Training the model...")

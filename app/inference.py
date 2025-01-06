@@ -1,11 +1,11 @@
 import torch
 from utils.preprocess import preprocess_image
-from models.model import initialize_model, generate_caption
+from models.model import load_fine_tuned_model, generate_caption
 
 def caption_image(image_path):
     try:
         # Initialize all model components
-        clip_model, clip_processor, gpt_model, tokenizer, clip_to_gpt = initialize_model()
+        clip_model, clip_processor, gpt_model, tokenizer, clip_to_gpt = load_fine_tuned_model()
         
         # Verify all components are initialized
         if None in [clip_model, clip_processor, gpt_model, tokenizer, clip_to_gpt]:

@@ -2,5 +2,3 @@ uploads
 uploads/Train_GCC-training.tsv
 uploads/Validation_GCC-1.1.0-Validation.tsv
 
-models/
-*.log
