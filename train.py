@@ -1,6 +1,6 @@
 from app.train_pipeline import train_pipeline
 import os
-from google.colab import drive
+#from google.colab import drive
 
 if __name__ == "__main__":
     
