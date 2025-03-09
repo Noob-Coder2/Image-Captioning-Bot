@@ -1,6 +1,8 @@
 import torch
-from transformers import CLIPModel, CLIPProcessor, GPT2LMHeadModel, GPT2Tokenizer
-from models.clip_gpt_bridge import CLIP2GPT
+from transformers import CLIPModel, CLIPProcessor, GPT2LMHeadModel, GPT2Tokenizer, GPT2Config
+from models.clip_gpt_bridge import ImageConditionedGPT2
+from torch.utils.data import DataLoader
+import os
 
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -12,63 +14,62 @@ def initialize_model():
 
 # Load models and tokenizer
 def load_fine_tuned_model(path="models/fine_tuned_model"):
-    """
-    Initializes and returns the CLIP model, processor, GPT2 model, tokenizer, and CLIP2GPT bridge.
-    """
-    # Load CLIP model
-    fine_tuned_model = GPT2LMHeadModel.from_pretrained(path).to(device)
+    """Initialize and return components without CLIP2GPT."""
     clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch16")
-    
-    # Load GPT2 model
-    gpt_model = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    
-    # Load CLIP2GPT bridge
-    clip_to_gpt = CLIP2GPT(clip_dim=512, gpt_dim=gpt_model.config.n_embd).to(device)
-    
-    return fine_tuned_model, clip_processor, gpt_model, tokenizer, clip_to_gpt
+    config = GPT2Config.from_pretrained("gpt2")
+    fine_tuned_model = ImageConditionedGPT2.from_pretrained(path, config=config).to(device) if os.path.exists(path) else ImageConditionedGPT2(config).to(device)
+    fine_tuned_model.tokenizer = tokenizer  # Attach for <image> token
+    fine_tuned_model.resize_token_embeddings(len(tokenizer))
+    return fine_tuned_model, clip_processor, tokenizer
 
+def train_model(model, dataloader, clip_model, total_steps=10000, save_interval=1000, checkpoint_path="checkpoint.pth"):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    clip_model.to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    step = 0
 
-def train_model(model, train_images, train_captions, epochs=5, learning_rate=1e-4):
-    """
-    Trains the model using the provided training data.
+    # Load checkpoint if exists
+    if os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        step = checkpoint['step']
+        print(f"Resuming from step {step}")
 
-    Args:
-        model (torch.nn.Module): The model to be trained.
-        train_images (torch.Tensor): Preprocessed images for training.
-        train_captions (torch.Tensor): Tokenized captions for training.
-        epochs (int): Number of training epochs.
-        learning_rate (float): Learning rate for the optimizer.
-
-    Returns:
-        torch.nn.Module: Trained model.
-    """
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    # loss_fn = torch.nn.CrossEntropyLoss()
-    
     model.train()
-    for epoch in range(epochs):
-        total_loss = 0
-        for image, caption in list(zip(train_images, train_captions)):
+    while step < total_steps:
+        for batch in dataloader:
+            if step >= total_steps:
+                break
+            images, input_ids = batch
+            images = images.to(device)
+            input_ids = input_ids.to(device)
+
+            # Compute image features
+            with torch.no_grad():
+                image_features = clip_model.get_image_features(images)
+
             optimizer.zero_grad()
-            
-            # Move inputs to device
-            image = image.to(device)
-            caption = caption.to(device)
-            
-            # Forward pass
-            outputs = model(image, labels=caption)
-            loss = outputs.loss
-            
-            # Backward pass and optimization
+            outputs = model(input_ids=input_ids, image_features=image_features, labels=input_ids)
+            loss = outputs['loss']
             loss.backward()
             optimizer.step()
-            
-            total_loss += loss.item()
-        
-        print(f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss:.4f}")
-    return model
 
+            step += 1
+            print(f"Step {step}/{total_steps}, Loss: {loss.item():.4f}")
+
+            # Save checkpoint
+            if step % save_interval == 0:
+                torch.save({
+                    'step': step,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                }, checkpoint_path)
+                print(f"Checkpoint saved at step {step} to {checkpoint_path}")
+
+    return model
 
 def save_model(fine_tuned_model, path = "models/fine_tuned_model"):
     """
@@ -83,23 +84,28 @@ def save_model(fine_tuned_model, path = "models/fine_tuned_model"):
     print(f"Model saved to {path}")
 
 
-def generate_caption(image_embedding, gpt_model, tokenizer, clip_to_gpt, fine_tuned_model=None):
+def generate_caption(image_embedding, model, tokenizer):
     """
-    Generates a caption for the provided image embedding using either the base or fine-tuned model.
+    Generate a caption using ImageConditionedGPT2.
 
     Args:
-        image_embedding (torch.Tensor): The embedding of the image.
-        gpt_model (GPT2LMHeadModel): Base GPT2 model.
-        tokenizer (GPT2Tokenizer): Tokenizer for text processing.
-        clip_to_gpt (CLIP2GPT): CLIP-GPT bridge model.
-        fine_tuned_model (GPT2LMHeadModel, optional): Fine-tuned GPT2 model. Defaults to None.
+        image_embedding (torch.Tensor): CLIP image features [batch, 512].
+        model (ImageConditionedGPT2): The trained model.
+        tokenizer (GPT2Tokenizer): Tokenizer with <image> token.
 
     Returns:
         str: Generated caption.
     """
-    model_to_use = fine_tuned_model if fine_tuned_model is not None else gpt_model
-    gpt_input = clip_to_gpt(image_embedding)
-    input_ids = tokenizer.encode(gpt_input, return_tensors="pt").to(device)
-    outputs = model_to_use.generate(input_ids=input_ids, max_length=50, num_beams=5, early_stopping=True)
-    
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    model.eval()
+    with torch.no_grad():
+        # Create input with <image> token
+        input_ids = torch.tensor([tokenizer.convert_tokens_to_ids('<image>')]).unsqueeze(0).to(model.device)
+        # Forward pass with image features
+        outputs = model.generate(
+            input_ids=input_ids,
+            image_features=image_embedding.to(model.device),
+            max_length=50,
+            num_beams=5,
+            early_stopping=True
+        )
+        return tokenizer.decode(outputs[0], skip_special_tokens=True)

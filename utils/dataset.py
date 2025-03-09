@@ -1,70 +1,56 @@
 import pandas as pd
-from torch.utils.data import Dataset
+import torch
+from torch.utils.data import IterableDataset
 from PIL import Image
+import requests
+import logging
+from transformers import CLIPProcessor, GPT2Tokenizer
+import time
 
+logger = logging.getLogger(__name__)
 
-def load_captions(file_path):
-    """
-    Loads captions and image paths from a .tsv file.
-    The file should be in format: caption \t image_url
+def load_image(url, max_retries=3, timeout=5):
+    """Download image with retries and exponential backoff."""
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, stream=True, timeout=timeout, headers=headers)
+            response.raise_for_status()
+            return Image.open(response.raw).convert("RGB")
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.warning(f"Failed to download {url}: {e}")
+                return None
+            time.sleep(2 ** attempt)
+    return None
 
-    Args:
-        file_path (str): Path to the .tsv file.
-
-    Returns:
-        tuple: (list of image paths, list of captions)
-
-    Raises:
-        ValueError: If the file format is invalid
-    """
-    try:
-        # Read the TSV file without headers
-        data = pd.read_csv(file_path, sep='\t', header=None)
-        
-        # Verify we have exactly two columns
-        if len(data.columns) != 2:
-            raise ValueError("TSV file must have exactly two columns: caption and image_url")
-            
-        # Extract captions and image paths
-        captions = data[0].tolist()
-        image_paths = data[1].tolist()
-        
-        return image_paths, captions
-        
-    except Exception as e:
-        raise ValueError(f"Error loading captions from {file_path}: {str(e)}")
-
-
-class ImageCaptionDataset(Dataset):
-    def __init__(self, image_paths, captions, processor, tokenizer):
-        """
-        Dataset class for loading image-caption pairs.
-
-        Args:
-            image_paths (list): List of paths to the image files.
-            captions (list): List of corresponding captions.
-            processor (Callable): Processor to preprocess images.
-            tokenizer (Callable): Tokenizer to preprocess captions.
-        """
-        self.image_paths = image_paths
-        self.captions = captions
+class StreamingImageCaptionDataset(IterableDataset):
+    def __init__(self, csv_file, processor, tokenizer, chunk_size=1000):
+        self.csv_file = csv_file
         self.processor = processor
         self.tokenizer = tokenizer
+        self.chunk_size = chunk_size
+        # Add special <image> token
+        self.tokenizer.add_special_tokens({'additional_special_tokens': ['<image>']})
+        self.image_token_id = self.tokenizer.convert_tokens_to_ids('<image>')
 
-    def __len__(self):
-        return len(self.image_paths)
+    def __iter__(self):
+        reader = pd.read_csv(self.csv_file, chunksize=self.chunk_size)
+        for chunk in reader:
+            for _, row in chunk.iterrows():
+                url = row['url']
+                caption = row['caption']
+                try:
+                    img = load_image(url)
+                    if img is None:
+                        continue
+                    # Preprocess image
+                    image = self.processor(images=img, return_tensors="pt")['pixel_values'].squeeze(0)
+                    # Tokenize caption and prepend <image> token
+                    caption_ids = self.tokenizer.encode(caption, return_tensors="pt").squeeze(0)
+                    input_ids = torch.cat([torch.tensor([self.image_token_id]), caption_ids])
+                    yield image, input_ids
+                except Exception as e:
+                    logger.warning(f"Error processing {url}: {e}")
+                    continue
 
-    def __getitem__(self, idx):
-        """
-        Retrieves a single image-caption pair.
-
-        Args:
-            idx (int): Index of the sample.
-
-        Returns:
-            tuple: Preprocessed image and caption.
-        """
-        image = Image.open(self.image_paths[idx]).convert("RGB")
-        inputs = self.processor(images=image, return_tensors="pt")
-        caption = self.tokenizer(self.captions[idx], return_tensors="pt", padding=True, truncation=True)
-        return inputs['pixel_values'].squeeze(0), caption['input_ids'].squeeze(0)
