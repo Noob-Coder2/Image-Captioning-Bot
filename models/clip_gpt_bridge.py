@@ -1,5 +1,5 @@
 from transformers import GPT2LMHeadModel
-from torch.nn import nn
+from torch import nn as nn
 import torch
 
 class ImageConditionedGPT2(GPT2LMHeadModel):

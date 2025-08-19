@@ -13,12 +13,28 @@ def initialize_model():
     return clip_model
 
 # Load models and tokenizer
-def load_fine_tuned_model(path="models/fine_tuned_model"):
+def load_fine_tuned_model(path="models/fine_tuned_model", conceptual_weights_path="uploads\conceptual_weights.pt"):
     """Initialize and return components without CLIP2GPT."""
     clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch16")
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     config = GPT2Config.from_pretrained("gpt2")
-    fine_tuned_model = ImageConditionedGPT2.from_pretrained(path, config=config).to(device) if os.path.exists(path) else ImageConditionedGPT2(config).to(device)
+    
+    # Check for conceptual_weights.pt first
+    if os.path.exists(conceptual_weights_path):
+        print(f"Loading model with conceptual weights from {conceptual_weights_path}")
+        fine_tuned_model = ImageConditionedGPT2(config).to(device)
+        # Load the state dict directly
+        state_dict = torch.load(conceptual_weights_path, map_location=device)
+        fine_tuned_model.load_state_dict(state_dict)
+    # Fallback to the original path
+    elif os.path.exists(path):
+        print(f"Loading model from {path}")
+        fine_tuned_model = ImageConditionedGPT2.from_pretrained(path, config=config).to(device)
+    # Create a new model if neither exists
+    else:
+        print("Initializing new model")
+        fine_tuned_model = ImageConditionedGPT2(config).to(device)
+    
     fine_tuned_model.tokenizer = tokenizer  # Attach for <image> token
     fine_tuned_model.resize_token_embeddings(len(tokenizer))
     return fine_tuned_model, clip_processor, tokenizer

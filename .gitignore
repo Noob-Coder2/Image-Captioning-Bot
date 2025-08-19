@@ -1,7 +1,12 @@
 uploads
 uploads/Train_GCC-training.tsv
 uploads/Validation_GCC-1.1.0-Validation.tsv
+uploads/conceptual_weights.pt
 
 app/__pycache__
-model/__pycache__
 utils/__pycache__
+models/__pycache__
+models\__pycache__
+
+.roomodes
+.venv

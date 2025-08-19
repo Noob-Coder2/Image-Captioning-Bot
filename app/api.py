@@ -34,7 +34,8 @@ def generate_caption_api():
 
         # Check if the model is already trained
         model_path = "models/fine_tuned_clip"
-        if not os.path.exists(model_path):
+        conceptual_weights_path = "uploads\conceptual_weights.pt"
+        if not os.path.exists(model_path) and not os.path.exists(conceptual_weights_path):
             return jsonify({"error": "Model not trained yet. Please train the model first."}), 400
 
         caption = caption_image(image_path)
